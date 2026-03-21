@@ -6,7 +6,7 @@ import MobileNav from "@/components/layout/MobileNav";
 import EngagementProvider from "@/components/engagement/EngagementProvider";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
@@ -17,7 +17,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <div className="flex min-h-screen">
       <Sidebar />
       <div className="flex-1 flex flex-col">
-        <Header email={user.email} />
+        <Header email={user.email || ""} />
         <main className="flex-1 p-4 md:p-8 pb-24 md:pb-8">
           <EngagementProvider userId={user.id}>
             {children}

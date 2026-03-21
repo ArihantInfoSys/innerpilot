@@ -22,20 +22,26 @@ export default function SignupPage() {
     setError("");
     setLoading(true);
 
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: { display_name: displayName },
-      },
-    });
+    try {
+      const { error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { display_name: displayName },
+        },
+      });
 
-    if (error) {
-      setError(error.message);
-      setLoading(false);
-    } else {
+      if (signUpError) {
+        setError(signUpError.message);
+        setLoading(false);
+        return;
+      }
+
       router.push("/checkin");
       router.refresh();
+    } catch (err: any) {
+      setError(err?.message || "An unexpected error occurred. Please try again.");
+      setLoading(false);
     }
   };
 
