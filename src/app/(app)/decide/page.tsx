@@ -47,6 +47,7 @@ export default function DecidePage() {
   const [useManualEmotions, setUseManualEmotions] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [showSuccess, setShowSuccess] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadTodayCheckin() {
@@ -138,10 +139,18 @@ export default function DecidePage() {
       });
 
       setSaving(false);
-      // Reset
-      setPhase("input");
-      setQuestion("");
-      setResult(null);
+
+      // Show success toast
+      const msg = acted
+        ? "Decision logged — you chose to proceed. Track the outcome later!"
+        : "Decision logged — wise choice to wait. Emotional clarity will come.";
+      setShowSuccess(msg);
+      setTimeout(() => {
+        setShowSuccess(null);
+        setPhase("input");
+        setQuestion("");
+        setResult(null);
+      }, 3000);
     },
     [result, question, context, supabase]
   );
@@ -214,6 +223,14 @@ export default function DecidePage() {
 
     return (
       <div className="max-w-2xl mx-auto space-y-6">
+        {/* Success Toast */}
+        {showSuccess && (
+          <div className="bg-green-500/15 border border-green-500/30 rounded-2xl px-4 py-3 flex items-center gap-3">
+            <CheckCircle2 className="w-5 h-5 text-green-400 shrink-0" />
+            <p className="text-sm text-green-300 font-medium">{showSuccess}</p>
+          </div>
+        )}
+
         {/* Signal Light */}
         <GlassCard className="text-center py-8">
           <div
