@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import { CheckinRecord, DayClass } from "@/lib/types";
 import { getDayClassConfig } from "@/lib/scoring";
 
@@ -7,7 +8,7 @@ interface HeatmapCalendarProps {
   checkins: CheckinRecord[];
 }
 
-export default function HeatmapCalendar({ checkins }: HeatmapCalendarProps) {
+function HeatmapCalendarInner({ checkins }: HeatmapCalendarProps) {
   const checkinMap = new Map<string, DayClass>();
   checkins.forEach((c) => checkinMap.set(c.checkin_date, c.day_class));
 
@@ -51,3 +52,5 @@ export default function HeatmapCalendar({ checkins }: HeatmapCalendarProps) {
     </div>
   );
 }
+
+export default React.memo(HeatmapCalendarInner);

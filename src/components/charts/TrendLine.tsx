@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { CheckinRecord } from "@/lib/types";
 
@@ -7,7 +8,7 @@ interface TrendLineProps {
   checkins: CheckinRecord[];
 }
 
-export default function TrendLine({ checkins }: TrendLineProps) {
+function TrendLineInner({ checkins }: TrendLineProps) {
   const data = [...checkins]
     .reverse()
     .map((c) => ({
@@ -49,3 +50,5 @@ export default function TrendLine({ checkins }: TrendLineProps) {
     </ResponsiveContainer>
   );
 }
+
+export default React.memo(TrendLineInner);

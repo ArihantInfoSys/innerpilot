@@ -28,19 +28,47 @@ export default function HistoryPage() {
   const [loading, setLoading] = useState(true);
   const supabase = createClient();
 
+  const [prevAvgScore, setPrevAvgScore] = useState<number | null>(null);
+
   useEffect(() => {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const { data } = await supabase
-        .from("checkins")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("checkin_date", { ascending: false })
-        .limit(parseInt(range));
+      const rangeDays = parseInt(range);
+      const sinceDate = new Date();
+      sinceDate.setDate(sinceDate.getDate() - rangeDays);
+      const sinceDateStr = sinceDate.toISOString().split("T")[0];
+
+      // Also fetch previous period for comparison
+      const prevStart = new Date();
+      prevStart.setDate(prevStart.getDate() - rangeDays * 2);
+      const prevStartStr = prevStart.toISOString().split("T")[0];
+
+      const [{ data }, { data: prevData }] = await Promise.all([
+        supabase
+          .from("checkins")
+          .select("*")
+          .eq("user_id", user.id)
+          .gte("checkin_date", sinceDateStr)
+          .order("checkin_date", { ascending: false }),
+        supabase
+          .from("checkins")
+          .select("composite_score")
+          .eq("user_id", user.id)
+          .gte("checkin_date", prevStartStr)
+          .lt("checkin_date", sinceDateStr),
+      ]);
 
       setCheckins((data as CheckinRecord[]) || []);
+
+      if (prevData && prevData.length > 0) {
+        const prev = prevData.reduce((sum: number, c: { composite_score: number }) => sum + Number(c.composite_score), 0) / prevData.length;
+        setPrevAvgScore(prev);
+      } else {
+        setPrevAvgScore(null);
+      }
+
       setLoading(false);
     }
 
@@ -66,16 +94,19 @@ export default function HistoryPage() {
     ...Object.fromEntries(EMOTIONS.map((e) => [e.name, c[e.name]])),
   }));
 
-  // Weekly summary
-  const bestDay = checkins.length > 0
+  // Summary stats
+  const daysTracked = checkins.length;
+  const bestDay = daysTracked > 0
     ? checkins.reduce((best, c) => (Number(c.composite_score) > Number(best.composite_score) ? c : best))
     : null;
-  const worstDay = checkins.length > 0
+  const worstDay = daysTracked > 0
     ? checkins.reduce((worst, c) => (Number(c.composite_score) < Number(worst.composite_score) ? c : worst))
     : null;
-  const avgScore = checkins.length > 0
-    ? checkins.reduce((sum, c) => sum + Number(c.composite_score), 0) / checkins.length
+  const avgScore = daysTracked > 0
+    ? checkins.reduce((sum, c) => sum + Number(c.composite_score), 0) / daysTracked
     : 0;
+  const isSingleCheckin = daysTracked <= 1;
+  const bestEqualsWorst = bestDay && worstDay && bestDay.id === worstDay.id;
 
   return (
     <div className="space-y-6">
@@ -112,28 +143,52 @@ export default function HistoryPage() {
             <GlassCard>
               <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Average Score</p>
               <p className="text-2xl font-bold text-white">{avgScore.toFixed(1)}</p>
+              {prevAvgScore !== null && (
+                <p className={`text-xs mt-1 font-medium ${avgScore >= prevAvgScore ? "text-green-400" : "text-red-400"}`}>
+                  {avgScore >= prevAvgScore ? "\u2191" : "\u2193"}{" "}
+                  {Math.abs(((avgScore - prevAvgScore) / prevAvgScore) * 100).toFixed(1)}% vs prev {range}d
+                </p>
+              )}
+              <p className="text-xs text-gray-600 mt-1">{daysTracked} day{daysTracked !== 1 ? "s" : ""} tracked</p>
             </GlassCard>
-            {bestDay && (
-              <GlassCard>
-                <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Best Day</p>
-                <p className="text-lg font-bold text-green-400">
-                  {Number(bestDay.composite_score).toFixed(1)}
-                </p>
-                <p className="text-xs text-gray-500">
-                  {new Date(bestDay.checkin_date).toLocaleDateString()}
-                </p>
-              </GlassCard>
-            )}
-            {worstDay && (
-              <GlassCard>
-                <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Hardest Day</p>
-                <p className="text-lg font-bold text-red-400">
-                  {Number(worstDay.composite_score).toFixed(1)}
-                </p>
-                <p className="text-xs text-gray-500">
-                  {new Date(worstDay.checkin_date).toLocaleDateString()}
+
+            {isSingleCheckin || bestEqualsWorst ? (
+              <GlassCard className="sm:col-span-2 flex flex-col items-center justify-center text-center">
+                <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">Best & Hardest Day</p>
+                <p className="text-lg font-bold text-amber-400">More data needed</p>
+                <p className="text-xs text-gray-500 mt-1 max-w-xs">
+                  Check in for a few more days to see your peak and struggle patterns emerge.
                 </p>
               </GlassCard>
+            ) : (
+              <>
+                {bestDay && (
+                  <GlassCard>
+                    <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Best Day</p>
+                    <p className="text-2xl font-bold text-green-400">
+                      {Number(bestDay.composite_score).toFixed(1)}
+                    </p>
+                    <p className="text-sm text-gray-400">
+                      {new Date(bestDay.checkin_date).toLocaleDateString("en-US", {
+                        weekday: "short", month: "short", day: "numeric",
+                      })}
+                    </p>
+                  </GlassCard>
+                )}
+                {worstDay && (
+                  <GlassCard>
+                    <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Hardest Day</p>
+                    <p className="text-2xl font-bold text-red-400">
+                      {Number(worstDay.composite_score).toFixed(1)}
+                    </p>
+                    <p className="text-sm text-gray-400">
+                      {new Date(worstDay.checkin_date).toLocaleDateString("en-US", {
+                        weekday: "short", month: "short", day: "numeric",
+                      })}
+                    </p>
+                  </GlassCard>
+                )}
+              </>
             )}
           </div>
 

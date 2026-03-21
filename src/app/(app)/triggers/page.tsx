@@ -72,13 +72,13 @@ export default function TriggersPage() {
             .eq("checkin_date", today)
             .single(),
           supabase
-            .from("triggers")
+            .from("trigger_entries")
             .select("*")
             .eq("user_id", user.id)
             .order("created_at", { ascending: false })
             .limit(20),
           supabase
-            .from("triggers")
+            .from("trigger_entries")
             .select("category")
             .eq("user_id", user.id)
             .gte("created_at", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()),
@@ -112,7 +112,7 @@ export default function TriggersPage() {
     setSaving(true);
 
     const { data, error } = await supabase
-      .from("triggers")
+      .from("trigger_entries")
       .insert({
         user_id: userId,
         checkin_id: todayCheckin?.id ?? null,

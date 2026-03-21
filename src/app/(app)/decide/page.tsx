@@ -36,6 +36,8 @@ export default function DecidePage() {
   const [context, setContext] = useState("general");
   const [phase, setPhase] = useState<Phase>("input");
   const [result, setResult] = useState<DecisionResult | null>(null);
+  const [questionError, setQuestionError] = useState(false);
+  const [attemptedSubmit, setAttemptedSubmit] = useState(false);
 
   // Emotion state
   const [todayCheckin, setTodayCheckin] = useState<CheckinRecord | null>(null);
@@ -94,8 +96,14 @@ export default function DecidePage() {
   );
 
   const handleAnalyze = useCallback(() => {
-    if (!question.trim()) return;
+    setAttemptedSubmit(true);
 
+    if (!question.trim()) {
+      setQuestionError(true);
+      return;
+    }
+
+    setQuestionError(false);
     setPhase("analyzing");
 
     // Simulate brief analysis time for UX
@@ -348,15 +356,30 @@ export default function DecidePage() {
       {/* Question Input */}
       <GlassCard>
         <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
-          What decision are you facing?
+          What decision are you facing? <span className="text-red-400">*</span>
         </label>
         <textarea
           value={question}
-          onChange={(e) => setQuestion(e.target.value)}
+          onChange={(e) => {
+            setQuestion(e.target.value);
+            if (e.target.value.trim()) setQuestionError(false);
+          }}
           placeholder="e.g., Should I send this proposal? Should I take this trade? Should I have that conversation?"
           rows={3}
-          className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-green-500/50 focus:ring-1 focus:ring-green-500/30 resize-none"
+          className={`w-full bg-white/5 border rounded-xl px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:ring-1 resize-none transition-colors ${
+            questionError
+              ? "border-red-500/60 focus:border-red-500/80 focus:ring-red-500/30"
+              : "border-white/10 focus:border-green-500/50 focus:ring-green-500/30"
+          }`}
         />
+        {questionError && (
+          <div className="flex items-center gap-2 mt-2 text-red-400">
+            <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+            <p className="text-xs font-medium">
+              Please describe the decision you&apos;re facing. This is essential for accurate emotional readiness analysis.
+            </p>
+          </div>
+        )}
 
         <div className="mt-4">
           <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
@@ -478,7 +501,6 @@ export default function DecidePage() {
         size="lg"
         className="w-full"
         onClick={handleAnalyze}
-        disabled={!question.trim()}
       >
         <Crosshair className="w-5 h-5" />
         Analyze Decision Readiness

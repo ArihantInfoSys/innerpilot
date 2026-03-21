@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer } from "recharts";
 import { EMOTIONS } from "@/lib/constants";
 import { EmotionValues } from "@/lib/types";
@@ -8,7 +9,7 @@ interface EmotionRadarProps {
   values: EmotionValues;
 }
 
-export default function EmotionRadar({ values }: EmotionRadarProps) {
+function EmotionRadarInner({ values }: EmotionRadarProps) {
   const data = EMOTIONS.map((e) => ({
     emotion: e.label,
     value: values[e.name],
@@ -41,3 +42,5 @@ export default function EmotionRadar({ values }: EmotionRadarProps) {
     </ResponsiveContainer>
   );
 }
+
+export default React.memo(EmotionRadarInner);
