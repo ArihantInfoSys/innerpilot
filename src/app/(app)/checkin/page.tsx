@@ -4,19 +4,21 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { EMOTIONS, DEFAULT_EMOTION_VALUES } from "@/lib/constants";
-import { calculateCompositeScore, classifyDay } from "@/lib/scoring";
+import { calculateCompositeScore, classifyDay, getDayClassConfig } from "@/lib/scoring";
 import { generateCoaching } from "@/lib/coaching-engine";
-import { EmotionValues, EmotionName } from "@/lib/types";
+import { generateReadinessForecast } from "@/lib/decision-engine";
+import { EmotionValues, EmotionName, ReadinessForecast } from "@/lib/types";
 import GlassCard from "@/components/ui/GlassCard";
 import Slider from "@/components/ui/Slider";
 import Button from "@/components/ui/Button";
-import { Sparkles } from "lucide-react";
+import { Sparkles, Sun, ArrowRight, CheckCircle, XCircle } from "lucide-react";
 
 export default function CheckinPage() {
   const [values, setValues] = useState<Record<EmotionName, number>>({ ...DEFAULT_EMOTION_VALUES });
   const [note, setNote] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [forecast, setForecast] = useState<ReadinessForecast | null>(null);
   const router = useRouter();
   const supabase = createClient();
 
@@ -90,16 +92,97 @@ export default function CheckinPage() {
         .update({ last_checkin_date: today, streak_count: newStreak })
         .eq("id", user.id);
 
-      router.push("/dashboard");
-      router.refresh();
-    } catch (err: any) {
-      setError(err.message || "Something went wrong");
+      // Generate and show readiness forecast instead of navigating
+      const readiness = generateReadinessForecast(emotionValues);
+      setForecast(readiness);
+      setLoading(false);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Something went wrong";
+      setError(message);
       setLoading(false);
     }
   };
 
   const positiveEmotions = EMOTIONS.filter((e) => e.polarity === "positive");
   const negativeEmotions = EMOTIONS.filter((e) => e.polarity === "negative");
+
+  // Show Morning Readiness Forecast after submission
+  if (forecast) {
+    const dayClassConfig = getDayClassConfig(forecast.dayClass);
+
+    return (
+      <div className="max-w-2xl mx-auto space-y-6">
+        {/* Forecast Header */}
+        <GlassCard className="text-center space-y-4 border-yellow-500/20">
+          <div className="w-16 h-16 rounded-full bg-yellow-500/20 flex items-center justify-center mx-auto">
+            <Sun className="w-8 h-8 text-yellow-400" />
+          </div>
+          <h2 className="text-2xl font-bold text-white">Your Morning Forecast</h2>
+          <p className="text-gray-400 text-sm">{forecast.forecast}</p>
+
+          {/* Score Display */}
+          <div className="inline-flex items-center gap-3 bg-white/5 rounded-2xl px-6 py-4">
+            <span
+              className="text-4xl font-bold"
+              style={{ color: dayClassConfig.color }}
+            >
+              {forecast.score}
+            </span>
+            <div className="text-left">
+              <p className="text-xs text-gray-500 uppercase tracking-wider">Readiness</p>
+              <p className="text-sm font-medium" style={{ color: dayClassConfig.color }}>
+                {dayClassConfig.emoji} {dayClassConfig.label}
+              </p>
+            </div>
+          </div>
+        </GlassCard>
+
+        {/* Best For / Avoid Today */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <GlassCard className="border-green-500/20">
+            <h3 className="text-sm font-semibold text-green-400 uppercase tracking-wider mb-3">
+              Best For Today
+            </h3>
+            <ul className="space-y-2">
+              {forecast.bestFor.map((item, i) => (
+                <li key={i} className="flex items-center gap-2 text-sm text-gray-300">
+                  <CheckCircle size={14} className="text-green-400 flex-shrink-0" />
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </GlassCard>
+
+          <GlassCard className="border-red-500/20">
+            <h3 className="text-sm font-semibold text-red-400 uppercase tracking-wider mb-3">
+              Avoid Today
+            </h3>
+            <ul className="space-y-2">
+              {forecast.avoidToday.map((item, i) => (
+                <li key={i} className="flex items-center gap-2 text-sm text-gray-300">
+                  <XCircle size={14} className="text-red-400 flex-shrink-0" />
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </GlassCard>
+        </div>
+
+        {/* Dismiss Button */}
+        <Button
+          onClick={() => {
+            router.push("/dashboard");
+            router.refresh();
+          }}
+          className="w-full"
+          size="lg"
+        >
+          Go to Dashboard
+          <ArrowRight size={16} />
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">

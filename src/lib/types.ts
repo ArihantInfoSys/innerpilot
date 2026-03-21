@@ -105,3 +105,92 @@ export interface EngagementContext {
   tier: "free" | "pro";
   totalCheckins: number;
 }
+
+// Decision Gate
+export interface DecisionGate {
+  id: string;
+  user_id: string;
+  question: string;
+  context: string;
+  emotional_score: number | null;
+  recommendation: string;
+  signal: 'green' | 'caution' | 'stop';
+  acted_on: boolean | null;
+  outcome_note: string | null;
+  created_at: string;
+}
+
+// Trigger Entry
+export interface TriggerEntry {
+  id: string;
+  user_id: string;
+  checkin_id: string | null;
+  trigger_label: string;
+  category: 'work' | 'relationship' | 'health' | 'finance' | 'sleep' | 'social' | 'other';
+  intensity: number;
+  note: string | null;
+  created_at: string;
+}
+
+// Evening Debrief
+export interface EveningDebrief {
+  id: string;
+  user_id: string;
+  checkin_id: string | null;
+  debrief_date: string;
+  decisions_made: string | null;
+  outcomes: string | null;
+  lesson_learned: string | null;
+  tomorrow_intention: string | null;
+  overall_rating: number | null;
+  created_at: string;
+}
+
+// Coach Chat Message
+export interface CoachMessage {
+  id: string;
+  user_id: string;
+  role: 'user' | 'coach';
+  content: string;
+  session_date: string;
+  created_at: string;
+}
+
+// Weekly Report
+export interface WeeklyReport {
+  id: string;
+  user_id: string;
+  week_start: string;
+  week_end: string;
+  avg_score: number | null;
+  best_day: string | null;
+  best_score: number | null;
+  worst_day: string | null;
+  worst_score: number | null;
+  top_trigger: string | null;
+  total_checkins: number;
+  streak_at_end: number;
+  insights: Record<string, unknown> | null;
+  created_at: string;
+}
+
+// Extended Profile
+export interface ProfileExtended extends Profile {
+  custom_emotions: string[];
+  preferred_role: 'trader' | 'founder' | 'professional' | 'student' | 'other';
+  morning_reminder: boolean;
+  evening_reminder: boolean;
+  onboarding_complete: boolean;
+}
+
+// Decision Signal
+export type DecisionSignal = 'green' | 'caution' | 'stop';
+
+// Readiness Forecast
+export interface ReadinessForecast {
+  score: number;
+  dayClass: DayClass;
+  forecast: string;
+  bestFor: string[];
+  avoidToday: string[];
+}

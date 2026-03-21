@@ -2,13 +2,54 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, ClipboardCheck, TrendingUp, Settings, Brain } from "lucide-react";
+import {
+  LayoutDashboard,
+  ClipboardCheck,
+  Crosshair,
+  TrendingUp,
+  Settings,
+  Brain,
+  MessageCircle,
+  Zap,
+  Sunset,
+  FileText,
+} from "lucide-react";
 
-const NAV_ITEMS = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/checkin", label: "Check-in", icon: ClipboardCheck },
-  { href: "/history", label: "Trends", icon: TrendingUp },
-  { href: "/settings", label: "Settings", icon: Settings },
+interface NavItem {
+  href: string;
+  label: string;
+  icon: typeof LayoutDashboard;
+}
+
+interface NavSection {
+  label: string;
+  items: NavItem[];
+}
+
+const NAV_SECTIONS: NavSection[] = [
+  {
+    label: "TRACK",
+    items: [
+      { href: "/checkin", label: "Check-in", icon: ClipboardCheck },
+      { href: "/debrief", label: "Debrief", icon: Sunset },
+    ],
+  },
+  {
+    label: "ANALYZE",
+    items: [
+      { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+      { href: "/decide", label: "Decide", icon: Crosshair },
+      { href: "/coach", label: "Coach", icon: MessageCircle },
+    ],
+  },
+  {
+    label: "REVIEW",
+    items: [
+      { href: "/triggers", label: "Triggers", icon: Zap },
+      { href: "/history", label: "Trends", icon: TrendingUp },
+      { href: "/report", label: "Report", icon: FileText },
+    ],
+  },
 ];
 
 export default function Sidebar() {
@@ -26,24 +67,50 @@ export default function Sidebar() {
         </div>
       </Link>
 
-      <nav className="flex-1 space-y-1">
-        {NAV_ITEMS.map((item) => {
-          const isActive = pathname.startsWith(item.href);
-          return (
+      <nav className="flex-1 space-y-6">
+        {NAV_SECTIONS.map((section) => (
+          <div key={section.label}>
+            <p className="text-[10px] font-semibold text-white/30 uppercase tracking-widest px-4 mb-2">
+              {section.label}
+            </p>
+            <div className="space-y-1">
+              {section.items.map((item) => {
+                const isActive = pathname.startsWith(item.href);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${
+                      isActive
+                        ? "bg-green-500/10 text-green-400 border border-green-500/20"
+                        : "text-gray-400 hover:text-white hover:bg-white/5"
+                    }`}
+                  >
+                    <item.icon size={18} />
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+
+        {/* Settings at the bottom of nav */}
+        <div>
+          <div className="space-y-1">
             <Link
-              key={item.href}
-              href={item.href}
+              href="/settings"
               className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${
-                isActive
+                pathname.startsWith("/settings")
                   ? "bg-green-500/10 text-green-400 border border-green-500/20"
                   : "text-gray-400 hover:text-white hover:bg-white/5"
               }`}
             >
-              <item.icon size={18} />
-              {item.label}
+              <Settings size={18} />
+              Settings
             </Link>
-          );
-        })}
+          </div>
+        </div>
       </nav>
 
       <div className="glass p-4 mt-4">
