@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { CheckinRecord, TriggerEntry } from "@/lib/types";
 import GlassCard from "@/components/ui/GlassCard";
 import Button from "@/components/ui/Button";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, AlertTriangle } from "lucide-react";
 
 const CATEGORIES = [
   { value: "work", label: "Work", icon: "\uD83D\uDCBC" },
@@ -52,6 +52,7 @@ export default function TriggersPage() {
   // Pattern analysis
   const [topTrigger, setTopTrigger] = useState<{ category: string; count: number } | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const supabase = createClient();
 
@@ -112,28 +113,46 @@ export default function TriggersPage() {
     if (!triggerLabel.trim() || !userId) return;
 
     setSaving(true);
+    setErrorMsg(null);
 
-    const { data, error } = await supabase
-      .from("trigger_entries")
-      .insert({
+    try {
+      // Build insert payload — omit checkin_id entirely if no checkin today
+      const payload: Record<string, unknown> = {
         user_id: userId,
-        checkin_id: todayCheckin?.id ?? null,
         trigger_label: triggerLabel.trim(),
         category,
         intensity,
         note: note.trim() || null,
-      })
-      .select()
-      .single();
+      };
+      if (todayCheckin?.id) {
+        payload.checkin_id = todayCheckin.id;
+      }
 
-    if (!error && data) {
-      setTriggers((prev) => [data as TriggerEntry, ...prev]);
-      setTriggerLabel("");
-      setCategory("work");
-      setIntensity(5);
-      setNote("");
-      setShowSuccess(true);
-      setTimeout(() => setShowSuccess(false), 3000);
+      const { data, error } = await supabase
+        .from("trigger_entries")
+        .insert(payload)
+        .select()
+        .single();
+
+      if (error) {
+        console.error("Trigger insert error:", error);
+        setErrorMsg(error.message || "Failed to save trigger. Please try again.");
+        setSaving(false);
+        return;
+      }
+
+      if (data) {
+        setTriggers((prev) => [data as TriggerEntry, ...prev]);
+        setTriggerLabel("");
+        setCategory("work");
+        setIntensity(5);
+        setNote("");
+        setShowSuccess(true);
+        setTimeout(() => setShowSuccess(false), 3000);
+      }
+    } catch (err) {
+      console.error("Trigger save exception:", err);
+      setErrorMsg("Something went wrong. Please check your connection and try again.");
     }
 
     setSaving(false);
@@ -166,11 +185,23 @@ export default function TriggersPage() {
 
       {/* Success Toast */}
       {showSuccess && (
-        <div className="bg-green-500/15 border border-green-500/30 rounded-2xl px-4 py-3 flex items-center gap-3 animate-in fade-in slide-in-from-top-2">
+        <div className="bg-green-500/15 border border-green-500/30 rounded-2xl px-4 py-3 flex items-center gap-3">
           <CheckCircle2 className="w-5 h-5 text-green-400 shrink-0" />
           <p className="text-sm text-green-300 font-medium">
             Trigger logged successfully! Awareness is the first step to mastery.
           </p>
+        </div>
+      )}
+
+      {/* Error Toast */}
+      {errorMsg && (
+        <div className="bg-red-500/15 border border-red-500/30 rounded-2xl px-4 py-3 flex items-center gap-3">
+          <AlertTriangle className="w-5 h-5 text-red-400 shrink-0" />
+          <div>
+            <p className="text-sm text-red-300 font-medium">Failed to log trigger</p>
+            <p className="text-xs text-red-400/70 mt-0.5">{errorMsg}</p>
+          </div>
+          <button onClick={() => setErrorMsg(null)} className="ml-auto text-red-400 hover:text-red-300 text-lg">&times;</button>
         </div>
       )}
 
