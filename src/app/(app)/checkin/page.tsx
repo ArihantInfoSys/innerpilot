@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { EMOTIONS, DEFAULT_EMOTION_VALUES } from "@/lib/constants";
 import { calculateCompositeScore, classifyDay, getDayClassConfig } from "@/lib/scoring";
-import { generateCoaching } from "@/lib/coaching-engine";
+import { generateCoaching, TriggerContext } from "@/lib/coaching-engine";
 import { generateReadinessForecast } from "@/lib/decision-engine";
 import { EmotionValues, EmotionName, ReadinessForecast } from "@/lib/types";
 import GlassCard from "@/components/ui/GlassCard";
@@ -37,7 +37,39 @@ export default function CheckinPage() {
       const emotionValues = values as EmotionValues;
       const compositeScore = calculateCompositeScore(emotionValues);
       const dayClass = classifyDay(compositeScore);
-      const coaching = generateCoaching(emotionValues);
+
+      // Fetch recent triggers for trigger-aware coaching
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+      const { data: triggerData } = await supabase
+        .from("trigger_entries")
+        .select("*")
+        .eq("user_id", user.id)
+        .gte("created_at", sevenDaysAgo)
+        .order("created_at", { ascending: false })
+        .limit(20);
+
+      let triggerCtx: TriggerContext | undefined;
+      if (triggerData && triggerData.length > 0) {
+        const counts: Record<string, number> = {};
+        let totalIntensity = 0;
+        let highCount = 0;
+        for (const t of triggerData) {
+          counts[t.category] = (counts[t.category] || 0) + 1;
+          totalIntensity += t.intensity;
+          if (t.intensity >= 8) highCount++;
+        }
+        const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+        triggerCtx = {
+          topCategory: sorted[0]?.[0] || null,
+          topCategoryCount: sorted[0]?.[1] || 0,
+          avgIntensity: totalIntensity / triggerData.length,
+          totalTriggers: triggerData.length,
+          highIntensityCount: highCount,
+          recentLabels: triggerData.slice(0, 3).map((t: { trigger_label: string }) => t.trigger_label),
+        };
+      }
+
+      const coaching = generateCoaching(emotionValues, triggerCtx);
 
       // Insert check-in
       const { data: checkin, error: checkinError } = await supabase

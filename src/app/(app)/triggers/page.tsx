@@ -116,40 +116,48 @@ export default function TriggersPage() {
     setErrorMsg(null);
 
     try {
-      // Build insert payload — omit checkin_id entirely if no checkin today
-      const payload: Record<string, unknown> = {
-        user_id: userId,
-        trigger_label: triggerLabel.trim(),
-        category,
-        intensity,
-        note: note.trim() || null,
-      };
-      if (todayCheckin?.id) {
-        payload.checkin_id = todayCheckin.id;
-      }
-
-      const { data, error } = await supabase
+      // Step 1: Insert (without .select() to avoid RLS read issues)
+      const { error: insertError } = await supabase
         .from("trigger_entries")
-        .insert(payload)
-        .select()
-        .single();
+        .insert({
+          user_id: userId,
+          checkin_id: todayCheckin?.id ?? null,
+          trigger_label: triggerLabel.trim(),
+          category,
+          intensity,
+          note: note.trim() || null,
+        });
 
-      if (error) {
-        console.error("Trigger insert error:", error);
-        setErrorMsg(error.message || "Failed to save trigger. Please try again.");
+      if (insertError) {
+        console.error("Trigger insert error:", insertError);
+        setErrorMsg(insertError.message || "Failed to save trigger. Please try again.");
         setSaving(false);
         return;
       }
 
-      if (data) {
-        setTriggers((prev) => [data as TriggerEntry, ...prev]);
-        setTriggerLabel("");
-        setCategory("work");
-        setIntensity(5);
-        setNote("");
-        setShowSuccess(true);
-        setTimeout(() => setShowSuccess(false), 3000);
+      // Step 2: Re-fetch all triggers to confirm persistence
+      const { data: freshTriggers, error: fetchError } = await supabase
+        .from("trigger_entries")
+        .select("*")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(20);
+
+      if (fetchError) {
+        console.error("Trigger fetch error:", fetchError);
+        // Insert succeeded but fetch failed — still show success
       }
+
+      if (freshTriggers) {
+        setTriggers(freshTriggers as TriggerEntry[]);
+      }
+
+      setTriggerLabel("");
+      setCategory("work");
+      setIntensity(5);
+      setNote("");
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 3500);
     } catch (err) {
       console.error("Trigger save exception:", err);
       setErrorMsg("Something went wrong. Please check your connection and try again.");

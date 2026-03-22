@@ -1,6 +1,16 @@
 import { EmotionValues, DayClass, CoachingResponse } from "./types";
 import { calculateCompositeScore, classifyDay } from "./scoring";
 
+/* ─── Trigger Context for Coaching ─── */
+export interface TriggerContext {
+  topCategory: string | null;
+  topCategoryCount: number;
+  avgIntensity: number;
+  totalTriggers: number;
+  highIntensityCount: number; // triggers with intensity >= 8
+  recentLabels: string[]; // last 3 trigger labels
+}
+
 type Pattern = {
   name: string;
   label: string;
@@ -89,6 +99,38 @@ const TEMPLATES: Record<DayClass, { summary: string; actions: string[]; encourag
   },
 };
 
+/* ─── Trigger-Aware Coaching Advice ─── */
+const TRIGGER_COACHING: Record<string, { action: string; warning: string }> = {
+  work: {
+    action: "Your work triggers are recurring — set a micro-boundary today: one firm 'no' or one task delegated. Cortisol spikes from work stress take 4 hours to normalize.",
+    warning: "Work-related stress is your dominant trigger. Avoid major career decisions until your emotional baseline stabilizes.",
+  },
+  relationship: {
+    action: "Relationship triggers are active — before your next difficult conversation, write down what you need vs. what you're reacting to. Emotional clarity prevents regrettable words.",
+    warning: "Interpersonal stress is heightened. Practice the 24-hour rule: no important relationship conversations while emotionally activated.",
+  },
+  health: {
+    action: "Health anxiety is recurring — ground yourself: place both feet on the floor, breathe 4-7-8 (inhale 4s, hold 7s, exhale 8s). Your body needs a signal of safety.",
+    warning: "Health-related worry loops are active. Limit health-related internet searches today — they amplify anxiety, not resolve it.",
+  },
+  finance: {
+    action: "Financial triggers are elevated — write down exactly one financial action you CAN control today. Certainty in small actions calms the threat-detection brain.",
+    warning: "Financial stress impairs rational thinking. Avoid impulsive spending or investment decisions during this period.",
+  },
+  sleep: {
+    action: "Sleep disruption is feeding your emotional instability — tonight, try the military sleep technique: relax face, drop shoulders, breathe out, clear mind for 10 seconds.",
+    warning: "Poor sleep amplifies every other trigger by 60%. Make tonight's sleep your #1 priority over everything else.",
+  },
+  social: {
+    action: "Social triggers suggest your boundaries need attention — practice saying 'I need to think about that' before committing to anything today.",
+    warning: "Social stress is draining your reserves. It's okay to decline one social obligation today — rest is not selfish.",
+  },
+  other: {
+    action: "Unnamed triggers are surfacing — spend 5 minutes journaling: 'What am I actually feeling right now?' Specificity transforms vague dread into manageable emotions.",
+    warning: "Unclassified stress often hides deeper patterns. Consider naming your triggers more specifically to unlock better self-awareness.",
+  },
+};
+
 function detectPatterns(values: EmotionValues): Pattern[] {
   return PATTERNS.filter((p) => p.condition(values));
 }
@@ -107,7 +149,10 @@ function identifyFocusAreas(values: EmotionValues): string[] {
   return areas;
 }
 
-export function generateCoaching(values: EmotionValues): CoachingResponse {
+export function generateCoaching(
+  values: EmotionValues,
+  triggerCtx?: TriggerContext
+): CoachingResponse {
   const compositeScore = calculateCompositeScore(values);
   const dayClass = classifyDay(compositeScore);
   const template = TEMPLATES[dayClass];
@@ -115,12 +160,42 @@ export function generateCoaching(values: EmotionValues): CoachingResponse {
   const focusAreas = identifyFocusAreas(values);
 
   const actions = [...template.actions];
+
+  // Pattern-based action override
   if (patterns.length > 0) {
     actions[0] = patterns[0].action;
   }
 
+  // ─── Trigger-Aware Enhancements ───
+  let summary = template.summary;
+
+  if (triggerCtx && triggerCtx.totalTriggers > 0) {
+    const cat = triggerCtx.topCategory || "other";
+    const triggerAdvice = TRIGGER_COACHING[cat] || TRIGGER_COACHING.other;
+
+    // Inject trigger-specific action
+    if (triggerCtx.highIntensityCount >= 2) {
+      // Replace the last action with urgent trigger advice
+      actions[actions.length - 1] = triggerAdvice.action;
+      // Add trigger focus area
+      focusAreas.push(`Recurring ${cat} triggers (${triggerCtx.topCategoryCount}x this week)`);
+    } else if (triggerCtx.totalTriggers >= 3) {
+      // Add as extra guidance
+      actions.push(triggerAdvice.action);
+      focusAreas.push(`${cat.charAt(0).toUpperCase() + cat.slice(1)} triggers active`);
+    }
+
+    // Modify summary to include trigger awareness
+    if (triggerCtx.avgIntensity >= 7) {
+      summary += ` Caution: ${triggerAdvice.warning}`;
+    } else if (triggerCtx.totalTriggers >= 2) {
+      const labels = triggerCtx.recentLabels.slice(0, 2).join(", ");
+      summary += ` Your recent triggers (${labels}) suggest staying mindful of ${cat}-related stressors today.`;
+    }
+  }
+
   return {
-    summary: template.summary,
+    summary,
     actions,
     focusAreas,
     encouragement: template.encouragement,

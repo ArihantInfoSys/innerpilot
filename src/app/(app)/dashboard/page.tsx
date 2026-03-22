@@ -8,7 +8,7 @@ import CoachingCard from "@/components/coaching/CoachingCard";
 import DayClassBadge from "@/components/coaching/DayClassBadge";
 import StreakBanner from "@/components/engagement/StreakBanner";
 import Button from "@/components/ui/Button";
-import { ClipboardCheck, Zap, ShieldAlert, BookOpen, Sparkles } from "lucide-react";
+import { ClipboardCheck, Zap, ShieldAlert, BookOpen, Sparkles, Activity } from "lucide-react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 
@@ -149,6 +149,7 @@ export default function DashboardPage() {
   const [recentTriggers, setRecentTriggers] = useState<TriggerEntry[]>([]);
   const [topTriggerCategory, setTopTriggerCategory] = useState<{ category: string; count: number } | null>(null);
   const [highIntensityAlert, setHighIntensityAlert] = useState(false);
+  const [triggerScore, setTriggerScore] = useState<{ score: number; label: string; color: string } | null>(null);
 
   const supabase = createClient();
 
@@ -239,6 +240,17 @@ export default function DashboardPage() {
           setTopTriggerCategory({ category: sorted[0][0], count: sorted[0][1] });
         }
         setHighIntensityAlert(typed.filter((t) => t.intensity >= 8).length >= 2);
+
+        // Calculate Trigger Health Score (100 = no triggers/low intensity, 0 = many high-intensity triggers)
+        const avgInt = typed.reduce((s, t) => s + t.intensity, 0) / typed.length;
+        const frequencyPenalty = Math.min(typed.length * 5, 40); // max -40 for 8+ triggers
+        const intensityPenalty = Math.min(avgInt * 5, 50); // max -50 for avg 10
+        const rawScore = Math.max(0, Math.round(100 - frequencyPenalty - intensityPenalty));
+        const tLabel = rawScore >= 75 ? "Stable" : rawScore >= 50 ? "Moderate" : rawScore >= 25 ? "Elevated" : "Critical";
+        const tColor = rawScore >= 75 ? "#4ade80" : rawScore >= 50 ? "#facc15" : rawScore >= 25 ? "#fb923c" : "#f87171";
+        setTriggerScore({ score: rawScore, label: tLabel, color: tColor });
+      } else {
+        setTriggerScore({ score: 100, label: "Clear", color: "#4ade80" });
       }
 
       setRecentCheckins((recentData as CheckinRecord[]) || []);
@@ -302,8 +314,8 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      {/* Top row: Score + Day Class + Streak */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {/* Top row: Score + Day Class + Trigger Health + Emotion Profile */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <GlassCard className="flex flex-col items-center justify-center">
           <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
             Performance Score
@@ -317,6 +329,37 @@ export default function DashboardPage() {
           </h3>
           <DayClassBadge dayClass={todayCheckin.day_class} size="lg" />
           <StreakBanner count={streakCount} />
+        </GlassCard>
+
+        {/* Trigger Health Score */}
+        <GlassCard className="flex flex-col items-center justify-center gap-3">
+          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+            Trigger Health
+          </h3>
+          <div className="relative w-20 h-20">
+            <svg className="w-20 h-20 -rotate-90" viewBox="0 0 80 80">
+              <circle cx="40" cy="40" r="34" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="6" />
+              <circle
+                cx="40" cy="40" r="34" fill="none"
+                stroke={triggerScore?.color || "#4ade80"}
+                strokeWidth="6"
+                strokeLinecap="round"
+                strokeDasharray={`${(triggerScore?.score || 100) * 2.136} 213.6`}
+              />
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <span className="text-xl font-bold text-white">{triggerScore?.score ?? 100}</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <Activity className="w-3.5 h-3.5" style={{ color: triggerScore?.color || "#4ade80" }} />
+            <span className="text-xs font-medium" style={{ color: triggerScore?.color || "#4ade80" }}>
+              {triggerScore?.label || "Clear"}
+            </span>
+          </div>
+          <p className="text-[10px] text-gray-500 text-center">
+            {recentTriggers.length} triggers this week
+          </p>
         </GlassCard>
 
         <GlassCard>
