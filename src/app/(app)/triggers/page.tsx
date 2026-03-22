@@ -116,8 +116,8 @@ export default function TriggersPage() {
     setErrorMsg(null);
 
     try {
-      // Step 1: Insert (without .select() to avoid RLS read issues)
-      const { error: insertError } = await supabase
+      // Use .select() to verify the row was actually created
+      const { data: inserted, error: insertError, status, statusText } = await supabase
         .from("trigger_entries")
         .insert({
           user_id: userId,
@@ -126,41 +126,37 @@ export default function TriggersPage() {
           category,
           intensity,
           note: note.trim() || null,
-        });
+        })
+        .select()
+        .single();
 
+      // Detailed error surfacing
       if (insertError) {
-        console.error("Trigger insert error:", insertError);
-        setErrorMsg(insertError.message || "Failed to save trigger. Please try again.");
+        const detail = `[${status} ${statusText}] ${insertError.message} | Code: ${insertError.code || "N/A"} | Details: ${insertError.details || "N/A"} | Hint: ${insertError.hint || "N/A"}`;
+        console.error("Trigger insert error:", detail, insertError);
+        setErrorMsg(detail);
         setSaving(false);
         return;
       }
 
-      // Step 2: Re-fetch all triggers to confirm persistence
-      const { data: freshTriggers, error: fetchError } = await supabase
-        .from("trigger_entries")
-        .select("*")
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false })
-        .limit(20);
-
-      if (fetchError) {
-        console.error("Trigger fetch error:", fetchError);
-        // Insert succeeded but fetch failed — still show success
+      if (!inserted) {
+        setErrorMsg(`Insert returned no data (status: ${status}). The trigger_entries table may not exist. Please run the migration SQL in your Supabase dashboard.`);
+        setSaving(false);
+        return;
       }
 
-      if (freshTriggers) {
-        setTriggers(freshTriggers as TriggerEntry[]);
-      }
-
+      // Success — update local list
+      setTriggers((prev) => [inserted as TriggerEntry, ...prev]);
       setTriggerLabel("");
       setCategory("work");
       setIntensity(5);
       setNote("");
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 3500);
-    } catch (err) {
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
       console.error("Trigger save exception:", err);
-      setErrorMsg("Something went wrong. Please check your connection and try again.");
+      setErrorMsg(`Exception: ${msg}`);
     }
 
     setSaving(false);
